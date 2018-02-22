@@ -151,8 +151,14 @@ class GitlabProject(Project):
         if 'sudo_user' in meta:
             headers['SUDO'] = meta['sudo_user']
         issues_url = '{}/issues'.format(self.api_url)
-        issue = self.api.post(
-            issues_url, data=data, headers=headers)
+        try:
+            issue = self.api.post(
+                issues_url, data=data, headers=headers)
+        except requests.exceptions.HTTPError:
+            # retry one time on failure, after waiting for a little while
+            time.sleep(1)
+            issue = self.api.post(
+                issues_url, data=data, headers=headers)
 
         issue_url = '{}/{}'.format(issues_url, issue['id'])
 
