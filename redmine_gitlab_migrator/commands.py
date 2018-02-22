@@ -236,7 +236,7 @@ def perform_migrate_issues(args):
     issues_data = ()
     # restore issues from dump if valid
     if (args.pickle is not None):
-        with open(args.pickle, 'b') as f:
+        with open(args.pickle, 'rb') as f:
             log.info('Restoring issues from previously saved dump in {}'.format(args.pickle))
             issues_data = pickle.load(f)
     else:
@@ -261,7 +261,7 @@ def perform_migrate_issues(args):
         # save issues_data to be able to restart from previously saved issues
         if (args.dump is not None):
             log.info('Saving issues in {}'.format(args.dump))
-            with open(args.dump, 'b') as f:
+            with open(args.dump, 'wb') as f:
                 pickle.dump(issues_data, f)
 
     # create issues
