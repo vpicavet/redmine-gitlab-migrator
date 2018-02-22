@@ -3,6 +3,7 @@ import argparse
 import logging
 import re
 import sys
+import pickle
 
 from redmine_gitlab_migrator.redmine import RedmineProject, RedmineClient
 from redmine_gitlab_migrator.gitlab import GitlabProject, GitlabClient
@@ -115,6 +116,16 @@ def parse_args():
         help="Initial issue ID, to skip some issues")
 
     parser_issues.add_argument(
+        '--dump',
+        required=False,
+        help="File path, dump issues in given file before trying to recreate them on Gitlab")
+
+    parser_issues.add_argument(
+        '--pickle',
+        required=False,
+        help="File path, get issues from this pickled file from previous run and only run recreate step")
+
+    parser_issues.add_argument(
         '--no-sudo', dest='sudo',
         action='store_false',
         default=True,
@@ -207,12 +218,8 @@ def perform_migrate_issues(args):
     if (args.user_dict is not None):
         load_user_dict(args.user_dict)
 
-    redmine = RedmineClient(args.redmine_key, args.no_verify)
     gitlab = GitlabClient(args.gitlab_key, args.no_verify)
-
-    redmine_project = RedmineProject(args.redmine_project_url, redmine)
     gitlab_project = GitlabProject(args.gitlab_project_url, gitlab)
-
     gitlab_instance = gitlab_project.get_instance()
 
     if (args.project_members_only):
@@ -220,25 +227,42 @@ def perform_migrate_issues(args):
     else:
         gitlab_users_index = gitlab_instance.get_users_index()
 
-    redmine_users_index = redmine_project.get_users_index()
     milestones_index = gitlab_project.get_milestones_index()
     textile_converter = TextileConverter()
 
     log.debug('GitLab milestones are: {}'.format(', '.join(milestones_index) + ' '))
 
-    # get issues
-    log.info('Getting redmine issues')
-    issues = redmine_project.get_all_issues()
-    if args.initial_id:
-        issues = [issue for issue in issues if int(args.initial_id) <= issue['id']]
+    issues = []
+    issues_data = ()
+    # restore issues from dump if valid
+    if (args.pickle is not None):
+        with open(args.pickle, 'b') as f:
+            log.info('Restoring issues from previously saved dump in {}'.format(args.pickle))
+            issues_data = pickle.load(f)
+    else:
+        # get issues
+        redmine = RedmineClient(args.redmine_key, args.no_verify)
+        redmine_project = RedmineProject(args.redmine_project_url, redmine)
+        redmine_users_index = redmine_project.get_users_index()
 
-    # convert issues
-    log.info('Converting issues')
-    issues_data = (
-        convert_issue(args.redmine_key,
-            i, redmine_users_index, gitlab_users_index, milestones_index, closed_states, custom_fields, textile_converter,
-            args.keep_id or args.keep_title, args.sudo)
-        for i in issues)
+        log.info('Getting redmine issues')
+        issues = redmine_project.get_all_issues()
+        if args.initial_id:
+            issues = [issue for issue in issues if int(args.initial_id) <= issue['id']]
+
+        # convert issues
+        log.info('Converting issues')
+        issues_data = (
+            convert_issue(args.redmine_key,
+                i, redmine_users_index, gitlab_users_index, milestones_index, closed_states, custom_fields, textile_converter,
+                args.keep_id or args.keep_title, args.sudo)
+            for i in issues)
+
+        # save issues_data to be able to restart from previously saved issues
+        if (args.dump is not None):
+            log.info('Saving issues in {}'.format(args.dump))
+            with open(args.dump, 'b') as f:
+                pickle.dump(issues_data, f)
 
     # create issues
     log.info('Creating gitlab issues')
