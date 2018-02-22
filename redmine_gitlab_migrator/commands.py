@@ -232,12 +232,13 @@ def perform_migrate_issues(args):
 
     log.debug('GitLab milestones are: {}'.format(', '.join(milestones_index) + ' '))
 
+
     issues = []
     # restore issues from dump if valid
     if (args.pickle is not None):
         with open(args.pickle, 'rb') as f:
             log.info('Restoring issues from previously saved dump in {}'.format(args.pickle))
-            issues = pickle.load(f)
+            (redmine_users_index, issues) = pickle.load(f)
     else:
         # get issues
         redmine = RedmineClient(args.redmine_key, args.no_verify)
@@ -253,7 +254,7 @@ def perform_migrate_issues(args):
         if (args.dump is not None):
             log.info('Saving issues in {}'.format(args.dump))
             with open(args.dump, 'wb') as f:
-                pickle.dump(issues, f)
+                pickle.dump((redmine_users_index, issues), f)
 
     # convert issues
     log.info('Converting issues')
