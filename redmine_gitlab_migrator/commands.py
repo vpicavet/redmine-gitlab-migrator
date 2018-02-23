@@ -239,6 +239,10 @@ def perform_migrate_issues(args):
         with open(args.pickle, 'rb') as f:
             log.info('Restoring issues from previously saved dump in {}'.format(args.pickle))
             (redmine_users_index, issues) = pickle.load(f)
+            # if we restore from dumped file, we should filter from initial id
+            # in case the dump contained all issues
+            if args.initial_id:
+                issues = [issue for issue in issues if int(args.initial_id) <= issue['id']]
     else:
         # get issues
         redmine = RedmineClient(args.redmine_key, args.no_verify)
